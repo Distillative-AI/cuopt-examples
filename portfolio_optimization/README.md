@@ -10,7 +10,11 @@ The portfolio optimization notebook solves a portfolio optimization problem wher
 
 - The goal is to maximize the expected return of a portfolio while minimizing the risk.
 
-### 2. Advanced Portfolio Optimization
+### 2. Portfolio Optimization using QP
+
+- The aim is to balance expected return with the risk of losses
+
+### 3. Advanced Portfolio Optimization
 
 For advanced portfolio optimization examples including:
 - Efficient frontier construction

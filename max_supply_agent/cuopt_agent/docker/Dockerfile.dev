@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025-2026, NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Dev container for NeMo Agent Toolkit with cuOpt skills.
+# Build context must be repo root (cuopt_skills/).
+#
+# docker build -f cuopt_agent/docker/Dockerfile.dev -t cuopt-agent-dev .
+
+FROM nvcr.io/nvidia/cuopt/cuopt:26.2.0-cuda12.9-py3.13
+
+# Dev tools
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv for fast package installs
+RUN pip install --no-cache-dir uv
+
+WORKDIR /app
+
+# Copy package and repo assets (build context: repo root)
+COPY cuopt_agent /app/cuopt_agent
+COPY skills /app/skills
+COPY AGENTS.md /app/AGENTS.md
+
+# Install manually inside container (e.g. uv pip install --extra-index-url https://pypi.nvidia.com -e /app/cuopt_agent)
+
+WORKDIR /app/cuopt_skills/cuopt_agent
+
+CMD ["bash"]

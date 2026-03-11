@@ -1,0 +1,3 @@
+[submodule "max_supply_agent/external/nat-ui"]
+	path = max_supply_agent/external/nat-ui
+	url = https://github.com/NVIDIA/NeMo-Agent-Toolkit-UI.git

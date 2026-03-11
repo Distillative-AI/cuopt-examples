@@ -1,0 +1,2 @@
+[nat.components]
+nat_cuopt_agent = nat_cuopt_agent.register

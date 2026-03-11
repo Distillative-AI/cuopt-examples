@@ -15,3 +15,14 @@ cuopt-isaacsim-sample-extension/cuopt-isaacsim-demo/app.ipynb_checkpoints/
 **/*-checkpoint.ipynb
 **/*-checkpoint.*
 .venv/
+
+# hidden agent folders
+.opencode
+.cursor
+.claude
+
+# hidden temporary folders
+.tmp/
+
+# configuration files
+.env

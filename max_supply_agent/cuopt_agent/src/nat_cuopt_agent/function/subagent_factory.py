@@ -96,6 +96,12 @@ async def subagent_factory(config: SubAgentFactory, builder: Builder):
         sub_agent_dict["skills"] = config.skills
 
     async def _inner(unused: str | None = None) -> dict:
+        """Subagent factory function that returns a dictionary of subagent configuration.
+        Args:
+            unused: Unused parameter.
+        Returns:
+            A dictionary of subagent configuration.
+        """
         return {**sub_agent_dict, "middleware": list(sub_agent_dict["middleware"])}
 
     yield FunctionInfo.from_fn(_inner, description=config.description)

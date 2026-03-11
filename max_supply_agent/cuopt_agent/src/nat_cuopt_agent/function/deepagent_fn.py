@@ -29,21 +29,11 @@ from nat.data_models.function import FunctionBaseConfig
 from nat.utils.type_converter import GlobalTypeConverter
 from pydantic import Field
 
-from .utils import (
-    SANDBOX_AGENTS_MD,
-    SANDBOX_SKILLS_DIR,
-    FixToolNamesMiddleware,
-    kill_orphaned_children,
-    populate_sandbox,
-    resolve_skills_dirs,
-    strip_pattern,
-)
-
 logger = logging.getLogger(__name__)
 
 
-class OrchestratorAgentConfig(FunctionBaseConfig, name="orchestrator_agent"):
-    """Orchestrator agent that delegates to subagents via create_deep_agent.
+class OrchestratorAgentConfig(FunctionBaseConfig, name="deepagent_fn"):
+    """Langchain DeepAgents agent that delegates to subagents via create_deep_agent.
 
     Subagents are defined as separate NAT functions (``subagent_factory``)
     in the YAML ``functions:`` section and referenced here by name.
@@ -148,8 +138,20 @@ async def orchestrator_agent(config: OrchestratorAgentConfig, builder: Builder):
     from deepagents.middleware.memory import MemoryMiddleware
     from langchain.agents.middleware.model_retry import ModelRetryMiddleware
 
+    from .utils import (
+        SANDBOX_AGENTS_MD,
+        SANDBOX_SKILLS_DIR,
+        FixToolNamesMiddleware,
+        kill_orphaned_children,
+        populate_sandbox,
+        resolve_skills_dirs,
+        strip_pattern,
+    )
+
+    # resolve skills directories
     skills_src_dirs = resolve_skills_dirs(config.skills_dir)
 
+    # resolve agents_md_path
     agents_md_src: Path | None = None
     if config.agents_md_path:
         candidate = Path(config.agents_md_path)
@@ -161,8 +163,10 @@ async def orchestrator_agent(config: OrchestratorAgentConfig, builder: Builder):
     logger.info("Resolved skills dirs: %s", skills_src_dirs or "(none)")
     logger.info("Resolved AGENTS.md: %s", agents_md_src or "(none)")
 
+    # Instantiate LLM with NAT builder
     llm = await builder.get_llm(config.llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
 
+    # Resolve venv path if provided for use in sandbox
     env: dict[str, str] = {}
     if config.venv_path is not None:
         venv = Path(config.venv_path)
@@ -171,22 +175,32 @@ async def orchestrator_agent(config: OrchestratorAgentConfig, builder: Builder):
             "VIRTUAL_ENV": str(venv),
         }
 
+    # Resolve effective skills and memory paths used in agent configuration
     effective_skills = config.skills if config.skills is not None else ([SANDBOX_SKILLS_DIR] if skills_src_dirs else [])
     effective_memory = config.memory if config.memory is not None else ([SANDBOX_AGENTS_MD] if agents_md_src else [])
 
+    # Workaround to strip reasoning patterns from the final response with minimax model
     strip_re = re.compile(config.strip_reasoning_pattern, re.DOTALL) if config.strip_reasoning_pattern else None
 
-    async def _inner(
-        chat_request_or_message: ChatRequestOrMessage,
-    ) -> ChatResponse | str:
+    # Inner function that handles the agent invocation and response processing
+    async def _inner(chat_request_or_message: ChatRequestOrMessage) -> ChatResponse | str:
+        """Inner function that handles the agent invocation and response processing.
+        Args:
+            chat_request_or_message: The chat request or message to process.
+        Returns:
+            A chat response or string.
+        """
         chat_request = GlobalTypeConverter.get().convert(chat_request_or_message, to_type=ChatRequest)
         messages = [m.model_dump() for m in chat_request.messages]
 
+        # Create a temporary sandbox directory for the agent
+        # Note execute tool will create files on host, a more robust sandbox should be used for production.
         with TemporaryDirectory() as sandbox_dir:
             sandbox = Path(sandbox_dir)
 
             populate_sandbox(sandbox, skills_src_dirs, agents_md_src, config.workspace_dirs)
 
+            # Create a local shell backend for the agent
             backend = LocalShellBackend(
                 root_dir=sandbox,
                 virtual_mode=True,
@@ -204,11 +218,10 @@ async def orchestrator_agent(config: OrchestratorAgentConfig, builder: Builder):
                 sub_agent_dicts.append(sa_dict)
 
             logger.info(
-                "Resolved %d subagent(s): %s",
-                len(sub_agent_dicts),
-                [sa.get("name", "?") for sa in sub_agent_dicts],
+                "Resolved %d subagent(s): %s", len(sub_agent_dicts), [sa.get("name", "?") for sa in sub_agent_dicts]
             )
 
+            # Create a middleware chain for the agent to improve reliability and performance
             middleware = [
                 FixToolNamesMiddleware(),
                 ModelRetryMiddleware(
@@ -221,6 +234,7 @@ async def orchestrator_agent(config: OrchestratorAgentConfig, builder: Builder):
                 ),
             ]
 
+            # Create a dictionary of agent configuration arguments, including subagents if configured
             agent_kwargs: dict = dict(
                 tools=config.tools,
                 model=llm,
@@ -237,6 +251,7 @@ async def orchestrator_agent(config: OrchestratorAgentConfig, builder: Builder):
 
             agent = create_deep_agent(**agent_kwargs)
 
+            # Ensure child/orphaned processes are cleaned up
             pre_children = {c.pid for c in psutil.Process().children(recursive=True)}
             try:
                 agent_result = await agent.ainvoke({"messages": messages})
@@ -247,6 +262,7 @@ async def orchestrator_agent(config: OrchestratorAgentConfig, builder: Builder):
             finally:
                 kill_orphaned_children(pre_children)
 
+        # Calculate usage metrics
         prompt_tokens = sum(len(str(m.content).split()) for m in chat_request.messages)
         completion_tokens = len(content.split()) if content else 0
         usage = Usage(

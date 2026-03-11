@@ -23,7 +23,7 @@ Reference optimization agent built on [NVIDIA NeMo Agent Toolkit](https://docs.n
 
 ## Overview
 
-The cuOpt Agent is a reference optimization assistant that translates natural-language problem descriptions into mathematical models, solves them on the GPU with NVIDIA cuOpt, and returns explained results. It ships with a **multi-period supply chain planning** scenario (max-supply) as its built-in use case, but the architecture is designed to be extended to other LP/MILP domains by adding new skills, data files, and configs. It is built as a [LangChain Deep Agents](https://www.langchain.com/) workflow on top of NAT, with structured skills that make the path from problem text to correct formulation more reliable.
+The cuOpt Agent is a reference optimization assistant that translates natural-language problem descriptions into mathematical models, solves them on the GPU with NVIDIA cuOpt, and returns explained results. It ships with a **multi-period supply chain planning** scenario (max-supply) as its built-in use case, but the architecture is designed to be extended to other LP/MILP domains by adding new skills, data files, and configs. It is built as a [LangChain Deep Agents](https://www.langchain.com/) workflow on top of NAT, with structured skills that make the path from problem text to correct formulation more reliable. The agent uses an **orchestrator-subagent** pattern: the orchestrator receives user queries and delegates optimization work to a specialized cuOpt subagent via the `task()` tool, keeping coordination logic separate from problem-solving logic.
 
 **Key features:**
 
@@ -95,7 +95,9 @@ Sample prompts are included to test the agent end-to-end. They pose supply-chain
 1. Open the Chat UI at http://localhost:3000.
 2. Copy the contents of a sample prompt and paste it into the chat input:
    - [`scenario_0.md`](cuopt_agent/data/max_supply_what_ifs/sample_prompts/scenario_0.md) -- Add opening inventory and compare against the baseline.
-   - [`scenario_1.md`](cuopt_agent/data/max_supply_what_ifs/sample_prompts/scenario_1.md) -- Full problem description with detailed BOM and constraints.
+   - [`scenario_1.md`](cuopt_agent/data/max_supply_what_ifs/sample_prompts/scenario_1.md) -- Change supply constraints from upper bounds to equality (forced procurement) and analyse the impact.
+   - [`scenario_2.md`](cuopt_agent/data/max_supply_what_ifs/sample_prompts/scenario_2.md) -- Introduce a substitute raw material (RM4) via a spot-buy shipment and add substitution logic.
+   - [`scenario_3.md`](cuopt_agent/data/max_supply_what_ifs/sample_prompts/scenario_3.md) -- Full problem description with detailed BOM, co-production, and resource constraints.
 3. Submit the prompt.
 
 The agent will read the dataset, formulate the LP model, solve it on the GPU, and return results.
@@ -172,12 +174,13 @@ Skills provide structured guidance for the agent. They live in `skills/` at the 
 
 **Why skills?** Agents can already use docs and references to reach a solution. Skills add rules and structure so that going from problem text to the right math model is more reliable. The cuopt-lp-milp reference models are the main win -- they give the agent a direct way to see API usage without searching docs. The debugging skill provides a fast path to common fixes.
 
+**Progressive disclosure:** Skills use a progressive disclosure pattern -- the agent sees only skill names and descriptions in its system prompt. When a user query matches a skill, the agent reads the full `SKILL.md` on demand. This keeps the base context small and focused while still giving the agent access to detailed instructions and reference code when needed.
+
 **Extending to other use cases:** The included `generic-max-supply` skill and data target the supply chain planning scenario. To adapt the agent for a different LP/MILP domain:
 
-1. Add a new skill under `skills/` describing the domain model (variables, constraints, objective).
-2. Place input data files in a new directory under `cuopt_agent/data/` and point `workspace_dirs` in your config YAML to it.
-3. Update the `system_prompt` in the config to orient the agent toward the new domain.
-4. Add eval cases under a new eval directory to measure quality on the new problem type.
+1. Add a new skill under `skills/` describing the domain model (variables, constraints, objective). Bundle reference data and scripts inside the skill directory itself (e.g., `skills/my-new-skill/scripts/` and `scripts/data/`), following the `generic-max-supply` pattern. This keeps each skill self-contained.
+2. Update the `system_prompt` in the config to orient the agent toward the new domain.
+3. Add eval cases under a new eval directory to measure quality on the new problem type.
 
 The general-purpose skills (`cuopt-lp-milp`, `problem-statement-parsing`, `cuopt-debugging`) work across all cuOpt LP/MILP use cases and do not need to be replaced.
 
@@ -205,6 +208,8 @@ Evaluation configs are in `cuopt_agent/configs/`. The eval harness runs the agen
 docker compose -f deploy/compose/docker-compose.yml run --rm cuopt-agent-eval
 ```
 
+> **Note:** The eval service uses a compose profile. If the command above fails, try adding `--profile eval` before `run`.
+
 **Development (from inside the dev container):**
 
 ```bash
@@ -224,21 +229,35 @@ cuopt_skills/
 ├── .env.example                      # Environment variable template
 ├── cuopt_agent/
 │   ├── configs/                      # NAT YAML configs (serve + eval)
-│   ├── data/                         # Eval datasets and sample prompts
+│   ├── data/
+│   │   └── max_supply_what_ifs/
+│   │       ├── eval/                 # Eval dataset (CSV + JSON)
+│   │       └── sample_prompts/       # Scenario prompts for testing
 │   ├── docker/
 │   │   ├── Dockerfile                # Production image
 │   │   └── Dockerfile.dev            # Development image
-│   ├── src/nat_cuopt_agent/          # Agent source code
+│   ├── src/nat_cuopt_agent/
+│   │   └── function/
+│   │       ├── deepagent_fn.py       # Orchestrator agent
+│   │       ├── subagent_factory.py   # Subagent factory
+│   │       ├── utils.py              # Shared utilities
+│   │       ├── healthcheck_fn.py     # Health check endpoint
+│   │       └── register.py           # NAT plugin registration
 │   └── pyproject.toml                # Python dependencies
 ├── deploy/
 │   └── compose/
 │       ├── docker-compose.yml        # Production compose
 │       └── docker-compose.dev.yml    # Development compose
 ├── skills/                           # Agent skills
-│   ├── cuopt-lp-milp/
-│   ├── problem-statement-parsing/
-│   ├── generic-max-supply/
-│   └── cuopt-debugging/
+│   ├── cuopt-lp-milp/               # LP/MILP API patterns and reference models
+│   ├── problem-statement-parsing/    # Problem text classification
+│   ├── generic-max-supply/           # Supply chain planning skill
+│   │   ├── SKILL.md
+│   │   └── scripts/                  # Self-contained model and data
+│   │       ├── model.py
+│   │       ├── data.py
+│   │       └── data/                 # Sample CSV datasets
+│   └── cuopt-debugging/              # Troubleshooting and diagnostics
 └── external/
     └── nat-ui/                       # Chat UI (git submodule)
 ```

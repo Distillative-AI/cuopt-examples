@@ -1,5 +1,0 @@
-nvidia-nat[eval,langchain,phoenix,test]==1.5.0rc2
-deepagents
-psutil
-sqlalchemy[asyncio]
-cuopt-cu12==26.2.*

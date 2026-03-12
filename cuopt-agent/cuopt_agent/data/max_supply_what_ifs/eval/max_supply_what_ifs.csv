@@ -1,0 +1,85 @@
+"id","question","answer"
+"max_supply_0","## Scenario
+
+The model currently assumes zero on-hand inventory at the start of the planning
+horizon. In practice, our warehouse already holds stock from previous cycles.
+
+## Request
+
+We have the following opening balances at `t = 0`:
+
+| Item | On-hand quantity |
+|------|-----------------|
+| SA1  | 40              |
+| RM1  | 250             |
+| RM3  | 180             |
+
+Update the model so that these items start with the given inventory levels
+instead of zero. All other items should remain at zero.
+
+Re-run the optimisation with the sample dataset (10 periods) and
+compare the results against the baseline:
+
+1. How does the objective value change?
+2. Which buy orders are reduced or eliminated in early periods?
+3. Does the final-product mix shift (more FG1, more FG2, or both)?
+
+Summarise the before/after in a concise table.","3580065"
+"max_supply_1","## Scenario
+
+The current model treats constrained supply as an **upper bound** — the solver
+may procure *up to* the quantity in `supply.csv` each period. In reality, these
+quantities represent confirmed purchase orders: the material **will** arrive
+regardless of whether we need it. Unused arrivals accumulate as inventory.
+
+## Request
+
+Change the supply constraint so that, for every procured item in a constrained
+family, the buy quantity **equals** the supply schedule rather than being bounded
+by it:
+
+```
+buy[i, t] = S[i, t]    (instead of buy[i, t] <= S[i, t])
+```
+
+Re-run the optimisation with the sample dataset (10 periods) and
+analyse the impact:
+
+1. How does the objective value change compared to the baseline?
+2. Which raw materials accumulate excess inventory, and in which periods?
+3. Does forcing full procurement create any downstream bottleneck shifts
+   (e.g., resource capacity becoming the binding constraint instead of supply)?
+
+Highlight any periods where the solver was previously choosing to buy less
+than the available supply, and explain why.","3460064"
+"max_supply_2","## Scenario
+
+We have just received notice of a one-time spot-buy shipment: **500 units of a
+new material RM4** arriving in **week 2**. RM4 is chemically compatible with RM1
+and can substitute for it in any process where RM1 is consumed, using the same
+input quantities. However, RM4 should only be used when RM1 inventory is
+insufficient to cover demand in a given period.
+
+## Request
+
+Make the necessary data and model changes to support this:
+
+1. **Data** — Add RM4 as a new procured item (assign it to an appropriate
+   family). Create a supply entry for 500 units in period 2 only.
+
+2. **Model** — Introduce substitution logic so that any process consuming RM1
+   can alternatively consume RM4 at the same rate. The solver should prefer
+   using RM1 first and fall back to RM4 only when RM1 is not available in
+   sufficient quantity.
+
+   *Hint: one approach is to add a small penalty to RM4 usage in the objective
+   so the solver naturally prefers RM1 while still allowing substitution.*
+
+3. **Run** — Solve the updated model with the sample dataset (10 periods).
+
+Analyse the results:
+
+1. In which periods is RM4 actually consumed, and by which processes?
+2. How does the additional material improve the objective value?
+3. Does RM4 inventory carry across multiple periods, or is it consumed quickly?
+4. What would happen if the shipment were moved to week 5 instead of week 2?","3470065"

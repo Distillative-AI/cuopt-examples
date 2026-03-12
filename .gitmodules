@@ -1,0 +1,6 @@
+[submodule "cuopt-agent/external/cuopt"]
+	path = cuopt-agent/external/cuopt
+	url = https://github.com/NVIDIA/cuopt.git
+[submodule "cuopt-agent/external/nat-ui"]
+	path = cuopt-agent/external/nat-ui
+	url = https://github.com/NVIDIA/NeMo-Agent-Toolkit-UI.git

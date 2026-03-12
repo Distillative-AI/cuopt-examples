@@ -135,7 +135,7 @@ docker compose -f deploy/compose/docker-compose.dev.yml up -d
 # Shell into the dev container
 docker exec -it cuopt-agent-dev bash
 
-# Inside the container (starts in cuopt_agent/):
+# Inside the container (CWD is /app/cuopt_agent):
 uv pip install -e . --system
 
 # Start the agent (--host 0.0.0.0 and --port 8000 so the UI container can reach it)
@@ -163,16 +163,24 @@ nat serve --config_file configs/config-deepagent.yml --host 0.0.0.0
 
 ## Skills
 
-Skills provide structured guidance for the agent. They live in `skills/` at the repo root.
+Skills provide structured guidance for the agent. They live in `skills/` at the repo root, organized into two groups: `max-supply` skills ship in this repo; `cuopt` skills come from the [cuopt submodule](https://github.com/NVIDIA/cuopt) (see [Quick Start](#quick-start) for setup).
+
+**This repo (`skills/max-supply/`):**
 
 | Skill | Description |
 |-------|-------------|
-| [cuopt-lp-milp](skills/cuopt-lp-milp/SKILL.md) | LP/MILP modeling with cuOpt Python API and reference models |
-| [problem-statement-parsing](skills/problem-statement-parsing/SKILL.md) | Classify problem text as parameter/constraint/decision/objective; flag ambiguity |
-| [generic-max-supply](skills/generic-max-supply/SKILL.md) | Multi-period supply chain planning model (BOM structure, variables, constraints) |
-| [cuopt-debugging](skills/cuopt-debugging/SKILL.md) | Troubleshooting, diagnostics, and common fixes |
+| [generic-max-supply](skills/max-supply/generic-max-supply/SKILL.md) | Multi-period supply chain planning model (BOM structure, variables, constraints) |
+| [cuopt-debugging](skills/max-supply/cuopt-debugging/SKILL.md) | Troubleshooting, diagnostics, and common fixes |
 
-**Why skills?** Agents can already use docs and references to reach a solution. Skills add rules and structure so that going from problem text to the right math model is more reliable. The cuopt-lp-milp reference models are the main win -- they give the agent a direct way to see API usage without searching docs. The debugging skill provides a fast path to common fixes.
+**From cuopt submodule (`skills/cuopt/` -- symlinked from `external/cuopt/skills/`):**
+
+| Skill | Description |
+|-------|-------------|
+| cuopt-lp-milp-api-python | cuOpt Python API patterns and reference models |
+| lp-milp-formulation | LP/MILP formulation guidance and modeling best practices |
+| *(and others)* | Additional skills maintained in the upstream cuopt repository |
+
+**Why skills?** Agents can already use docs and references to reach a solution. Skills add rules and structure so that going from problem text to the right math model is more reliable. The cuopt submodule skills (e.g., `cuopt-lp-milp-api-python`) give the agent a direct way to see API usage without searching docs. The debugging skill provides a fast path to common fixes.
 
 **Progressive disclosure:** Skills use a progressive disclosure pattern -- the agent sees only skill names and descriptions in its system prompt. When a user query matches a skill, the agent reads the full `SKILL.md` on demand. This keeps the base context small and focused while still giving the agent access to detailed instructions and reference code when needed.
 
@@ -182,7 +190,7 @@ Skills provide structured guidance for the agent. They live in `skills/` at the 
 2. Update the `system_prompt` in the config to orient the agent toward the new domain.
 3. Add eval cases under a new eval directory to measure quality on the new problem type.
 
-The general-purpose skills (`cuopt-lp-milp`, `problem-statement-parsing`, `cuopt-debugging`) work across all cuOpt LP/MILP use cases and do not need to be replaced.
+The general-purpose skills from the cuopt submodule (`cuopt-lp-milp-api-python`, `lp-milp-formulation`, etc.) work across all cuOpt LP/MILP use cases and do not need to be replaced.
 
 ## Services
 
@@ -223,7 +231,7 @@ See [AGENTS.md](AGENTS.md) for instructions on how to use these skills.
 ## Project Structure
 
 ```
-cuopt_skills/
+cuopt-agent/
 ├── AGENTS.md                         # Instructions for AI agents
 ├── README.md                         # This file
 ├── .env.example                      # Environment variable template
@@ -249,16 +257,22 @@ cuopt_skills/
 │       ├── docker-compose.yml        # Production compose
 │       └── docker-compose.dev.yml    # Development compose
 ├── skills/                           # Agent skills
-│   ├── cuopt-lp-milp/               # LP/MILP API patterns and reference models
-│   ├── problem-statement-parsing/    # Problem text classification
-│   ├── generic-max-supply/           # Supply chain planning skill
-│   │   ├── SKILL.md
-│   │   └── scripts/                  # Self-contained model and data
-│   │       ├── model.py
-│   │       ├── data.py
-│   │       └── data/                 # Sample CSV datasets
-│   └── cuopt-debugging/              # Troubleshooting and diagnostics
+│   ├── max-supply/                   # Skills in this repo
+│   │   ├── generic-max-supply/       # Supply chain planning skill
+│   │   │   ├── SKILL.md
+│   │   │   └── scripts/              # Self-contained model and data
+│   │   │       ├── model.py
+│   │   │       ├── data.py
+│   │   │       └── data/             # Sample CSV datasets
+│   │   └── cuopt-debugging/          # Troubleshooting and diagnostics
+│   │       ├── SKILL.md
+│   │       └── resources/
+│   └── cuopt -> external/cuopt/skills  # Symlink to cuopt submodule skills
+│       ├── cuopt-lp-milp-api-python/ # cuOpt Python API patterns and reference models
+│       ├── lp-milp-formulation/      # LP/MILP formulation guidance
+│       └── ...                       # Additional upstream skills
 └── external/
+    ├── cuopt/                        # cuOpt submodule (github.com/NVIDIA/cuopt)
     └── nat-ui/                       # Chat UI (git submodule)
 ```
 

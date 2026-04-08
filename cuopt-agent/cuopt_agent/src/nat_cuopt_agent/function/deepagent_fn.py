@@ -117,7 +117,7 @@ class DeepAgentConfig(FunctionBaseConfig, name="deepagent_fn"):
         description="Initial delay in seconds before first retry.",
     )
     retry_max_delay: float = Field(
-        default=60.0,
+        default=120.0,
         description="Maximum delay cap in seconds between retries.",
     )
     strip_reasoning_pattern: str = Field(
@@ -142,6 +142,7 @@ async def deep_agent(config: DeepAgentConfig, builder: Builder):
         SANDBOX_AGENTS_MD,
         SANDBOX_SKILLS_DIR,
         FixToolNamesMiddleware,
+        ToolRetryMiddleware,
         kill_orphaned_children,
         populate_sandbox,
         resolve_skills_dirs,
@@ -165,6 +166,16 @@ async def deep_agent(config: DeepAgentConfig, builder: Builder):
 
     # Instantiate LLM with NAT builder
     llm = await builder.get_llm(config.llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
+
+    print("#########################")
+    from langchain_core.language_models import BaseChatModel
+
+    if isinstance(llm, BaseChatModel):
+        print("FOUND IT: BaseChatModel")
+        # pass
+    # print(type(llm))
+    print("INSTANCE CHECK: ", isinstance(llm, BaseChatModel))
+    print("#########################")
 
     # Resolve venv path if provided for use in sandbox
     env: dict[str, str] = {}
@@ -224,6 +235,7 @@ async def deep_agent(config: DeepAgentConfig, builder: Builder):
             # Create a middleware chain for the agent to improve reliability and performance
             middleware = [
                 FixToolNamesMiddleware(),
+                ToolRetryMiddleware(),
                 ModelRetryMiddleware(
                     max_retries=config.max_retries,
                     backoff_factor=config.retry_backoff_factor,

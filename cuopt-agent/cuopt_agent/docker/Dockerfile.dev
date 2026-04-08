@@ -21,6 +21,7 @@ WORKDIR /app
 # Copy package and repo assets (build context: repo root)
 COPY cuopt_agent /app/cuopt_agent
 COPY skills /app/skills
+COPY external/cuopt/skills /app/skills/cuopt
 COPY AGENTS.md /app/AGENTS.md
 
 # Install manually inside container (e.g. uv pip install --extra-index-url https://pypi.nvidia.com -e /app/cuopt_agent)

@@ -38,6 +38,7 @@ llms:
     api_key: ${NVIDIA_API_KEY}
     base_url: https://integrate.api.nvidia.com/v1/
     max_tokens: 16384    
+    do_auto_retry: false
 
 functions:
   healthcheck:
@@ -57,17 +58,17 @@ workflow:
     - "AGENTS.md"
   workspace_dirs:
     - cuopt_agent/data/max_supply_what_ifs/input
-  max_retries: 2
+  max_retries: 16
   retry_backoff_factor: 2.0
   retry_initial_delay: 1.0
-  retry_max_delay: 60.0
+  retry_max_delay: 120.0
   system_prompt: |
-    You are a supply-chain optimization coordinator powered by NVIDIA cuOpt.
-    For optimization problems, delegate to the cuopt_sub_agent using the task() tool.
-    For general questions, respond directly.
+    You are a supply-chain optimization assistant powered by NVIDIA cuOpt.
+    Solve the following optimization problem using Python and the cuOpt solver.
+    Only write files in your working directory. Do not ask follow-up questions.
+    Reference your skills to understand latest API usage before getting started.
+    Answer simple questions directly.
     Report the optimal objective value as a single float in \boxed{...} on the last line.
-  subagents:
-    - cuopt_sub_agent
 
 eval:
   general:

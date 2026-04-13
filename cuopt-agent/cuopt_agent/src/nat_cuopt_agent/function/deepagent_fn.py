@@ -167,16 +167,6 @@ async def deep_agent(config: DeepAgentConfig, builder: Builder):
     # Instantiate LLM with NAT builder
     llm = await builder.get_llm(config.llm_name, wrapper_type=LLMFrameworkEnum.LANGCHAIN)
 
-    print("#########################")
-    from langchain_core.language_models import BaseChatModel
-
-    if isinstance(llm, BaseChatModel):
-        print("FOUND IT: BaseChatModel")
-        # pass
-    # print(type(llm))
-    print("INSTANCE CHECK: ", isinstance(llm, BaseChatModel))
-    print("#########################")
-
     # Resolve venv path if provided for use in sandbox
     env: dict[str, str] = {}
     if config.venv_path is not None:
